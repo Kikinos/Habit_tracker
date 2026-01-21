@@ -60,25 +60,22 @@ def safe_string(value, max_length=100):
 
 app = Flask(__name__)
 
-# Konfigurace databáze - SQL Server nebo SQLite
-DB_TYPE = os.getenv('DB_TYPE', 'sqlite')  # 'sqlite' nebo 'mssql'
+# Vytvoř instance folder pro databázi/logy (funguje i v Dockeru či čerstvém klonu)
+os.makedirs(app.instance_path, exist_ok=True)
 
-if DB_TYPE == 'sqlite':
-    # SQLite pro vývoj
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///habits.db'
+# Konfigurace databáze - SQLite by default, volitelně DATABASE_URL
+db_url = os.getenv('DATABASE_URL')
+if db_url:
+    app.config['SQLALCHEMY_DATABASE_URI'] = db_url
 else:
-    # SQLite pro vývoj - všechny režimy
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///habits.db'
+    # SQLite soubor do instance_path, aby se vždy vytvořil
+    app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{os.path.join(app.instance_path, 'habits.db')}"
 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key-change-this-in-production')
 
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
-
-# Automatické vytvoření tabulek
-with app.app_context():
-    db.create_all()
 
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'

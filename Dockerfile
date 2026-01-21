@@ -18,5 +18,6 @@ ENV FLASK_RUN_HOST=0.0.0.0
 # Otevřeme port 5000
 EXPOSE 5000
 
-# Spustíme aplikaci
-CMD ["flask", "run"]
+# Spustíme migrace a aplikaci bez extra entrypoint skriptu.
+# 'flask db stamp head' řeší případ, kdy DB existuje bez alembic_version tabulky (legacy create_all).
+CMD ["sh", "-c", "flask db stamp head || true; flask db upgrade || true; flask run --host=0.0.0.0 --port=5000"]
