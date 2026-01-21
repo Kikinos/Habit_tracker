@@ -1,15 +1,89 @@
 from flask import Flask, render_template, request, redirect, url_for, jsonify, flash
 from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
 import os
+from dotenv import load_dotenv
+import re
+from html import escape
+
+load_dotenv()
+
+# Funkce pro validaci a sanitaci dat
+def validate_username(username):
+    """Validuj uživatelské jméno - max 80 znaků, jen alfanumerické znaky a podtržítka"""
+    if not username or len(username) < 3 or len(username) > 80:
+        return False, "Uživatelské jméno musí mít 3-80 znaků"
+    
+    if not re.match(r'^[a-zA-Z0-9_-]+$', username):
+        return False, "Uživatelské jméno může obsahovat jen písmena, čísla, podtržítko a pomlčku"
+    
+    return True, ""
+
+def validate_email(email):
+    """Validuj email"""
+    if not email or len(email) > 120:
+        return False, "Email je neplatný"
+    
+    # Jednoduchý email regex
+    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    if not re.match(pattern, email):
+        return False, "Email je neplatný"
+    
+    return True, ""
+
+def validate_password(password):
+    """Validuj heslo - min 6 znaků, max 200"""
+    if not password or len(password) < 6 or len(password) > 200:
+        return False, "Heslo musí mít 6-200 znaků"
+    
+    return True, ""
+
+def validate_habit_name(name):
+    """Validuj název návyku - max 100 znaků, bez nebezpečných znaků"""
+    if not name or len(name) < 1 or len(name) > 100:
+        return False, "Název návyku musí mít 1-100 znaků"
+    
+    # Odstraň HTML znaky a přebytečné mezery
+    name = escape(name).strip()
+    
+    return True, ""
+
+def safe_string(value, max_length=100):
+    """Ochrana před XSS - escapuj HTML znaky"""
+    if not value:
+        return ""
+    value = str(value)[:max_length].strip()
+    return escape(value)
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///habits.db'
+
+# Konfigurace databáze - SQL Server nebo SQLite
+DB_TYPE = os.getenv('DB_TYPE', 'sqlite')  # 'sqlite' nebo 'mssql'
+
+if DB_TYPE == 'sqlite':
+    # SQLite pro vývoj
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///habits.db'
+else:
+    # SQL Server pro produkci
+    DB_USER = os.getenv('DB_USER', 'sa')
+    DB_PASSWORD = os.getenv('DB_PASSWORD', 'DefaultPassword123')
+    DB_HOST = os.getenv('DB_HOST', 'localhost')
+    DB_PORT = os.getenv('DB_PORT', '1433')
+    DB_NAME = os.getenv('DB_NAME', 'habit_tracker')
+    
+    # Connection string pro SQL Server
+    connection_string = f'mssql+pyodbc://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}?driver=ODBC+Driver+17+for+SQL+Server'
+    app.config['SQLALCHEMY_DATABASE_URI'] = connection_string
+
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SECRET_KEY'] = 'your-secret-key-change-this-in-production'
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key-change-this-in-production')
+
 db = SQLAlchemy(app)
+migrate = Migrate(app, db)
+
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 login_manager.login_message = 'Pro přístup se musíš přihlásit.'
@@ -48,15 +122,39 @@ class Record(db.Model):
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-# Vytvoření databáze při spuštění aplikace
-with app.app_context():
-    db.create_all()
-
 # Routy
+@app.route('/')
 @login_required
 def index():
     """Hlavní stránka"""
-    habits = Habit.query.filter_by(user_id=current_user.id)
+    habits = Habit.query.filter_by(user_id=current_user.id).all()
+    today = datetime.now().date()
+    today_str = today.strftime('%Y-%m-%d')
+    
+    # Příprava dat pro zobrazení
+    habits_with_status = []
+    for habit in habits:
+        # Zkontrolovat, zda je návyk splněn dnes
+        completed_today = Record.query.filter_by(habit_id=habit.id, date=today).first() is not None
+        
+        # Počet splnění za poslední týden
+        week_start = today - timedelta(days=6)
+        week_count = Record.query.filter(
+            Record.habit_id == habit.id,
+            Record.date >= week_start,
+            Record.date <= today
+        ).count()
+        
+        habits_with_status.append({
+            'id': habit.id,
+            'name': habit.name,
+            'target_per_week': habit.target_per_week,
+            'completed_today': completed_today,
+            'week_count': week_count
+        })
+    
+    return render_template('index.html', habits=habits_with_status, today=today_str)
+
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     """Registrace nového uživatele"""
@@ -69,17 +167,26 @@ def register():
         password = request.form.get('password', '').strip()
         password2 = request.form.get('password2', '').strip()
         
-        # Validace
-        if not username or not email or not password:
-            flash('Všechna pole jsou povinná!', 'error')
+        # Validace uživatelského jména
+        valid, msg = validate_username(username)
+        if not valid:
+            flash(msg, 'error')
+            return redirect(url_for('register'))
+        
+        # Validace emailu
+        valid, msg = validate_email(email)
+        if not valid:
+            flash(msg, 'error')
+            return redirect(url_for('register'))
+        
+        # Validace hesla
+        valid, msg = validate_password(password)
+        if not valid:
+            flash(msg, 'error')
             return redirect(url_for('register'))
         
         if password != password2:
             flash('Hesla se neshodují!', 'error')
-            return redirect(url_for('register'))
-        
-        if len(password) < 6:
-            flash('Heslo musí mít alespoň 6 znaků!', 'error')
             return redirect(url_for('register'))
         
         # Kontrola, zda uživatel už neexistuje
@@ -92,7 +199,7 @@ def register():
             return redirect(url_for('register'))
         
         # Vytvoření nového uživatele
-        user = User(username=username, email=email)
+        user = User(username=safe_string(username, 80), email=safe_string(email, 120))
         user.set_password(password)
         db.session.add(user)
         db.session.commit()
@@ -131,38 +238,6 @@ def logout():
     flash('Byl jsi odhlášen.', 'info')
     return redirect(url_for('login'))
 
-@app.route('/')
-@login_required
-def index():
-    """Hlavní stránka"""
-    habits = Habit.query.filter_by(user_id=current_user.id).all()
-    today = datetime.now().date()
-    today_str = today.strftime('%Y-%m-%d')
-    
-    # Příprava dat pro zobrazení
-    habits_with_status = []
-    for habit in habits:
-        # Zkontrolovat, zda je návyk splněn dnes
-        completed_today = Record.query.filter_by(habit_id=habit.id, date=today).first() is not None
-        
-        # Počet splnění za poslední týden
-        week_start = today - timedelta(days=6)
-        week_count = Record.query.filter(
-            Record.habit_id == habit.id,
-            Record.date >= week_start,
-            Record.date <= today
-        ).count()
-        
-        habits_with_status.append({
-            'id': habit.id,
-            'name': habit.name,
-            'target_per_week': habit.target_per_week,
-            'completed_today': completed_today,
-            'week_count': week_count
-        })
-    
-    return render_template('index.html', habits=habits_with_status, today=today_str)
-
 @app.route('/add_habit', methods=['POST'])
 @login_required
 def add_habit():
@@ -170,25 +245,34 @@ def add_habit():
     habit_name = request.form.get('habit_name', '').strip()
     target_per_week = request.form.get('target_per_week', '7').strip()
     
-    if habit_name:
-        try:
-            target = int(target_per_week)
-            if target < 1:
-                target = 1
-            elif target > 7:
-                target = 7
-        except ValueError:
-            target = 7
-            
-        new_habit = Habit(
-            name=habit_name,
-            target_per_week=target,
-            created=datetime.now().date(),
-            user_id=current_user.id
-        )
-        db.session.add(new_habit)
-        db.session.commit()
+    # Validace názvu návyku
+    valid, msg = validate_habit_name(habit_name)
+    if not valid:
+        flash(msg, 'error')
+        return redirect(url_for('index'))
     
+    try:
+        target = int(target_per_week)
+        if target < 1:
+            target = 1
+        elif target > 7:
+            target = 7
+    except ValueError:
+        target = 7
+    
+    # Sanitace názvu
+    habit_name = safe_string(habit_name, 100)
+        
+    new_habit = Habit(
+        name=habit_name,
+        target_per_week=target,
+        created=datetime.now().date(),
+        user_id=current_user.id
+    )
+    db.session.add(new_habit)
+    db.session.commit()
+    
+    flash(f'Návyk "{habit_name}" přidán!', 'success')
     return redirect(url_for('index'))
 
 @app.route('/delete_habit/<int:habit_id>', methods=['POST'])
@@ -286,4 +370,4 @@ def statistics():
     return render_template('statistics.html', stats=stats)
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    app.run(host='0.0.0.0', debug=True, port=5000)

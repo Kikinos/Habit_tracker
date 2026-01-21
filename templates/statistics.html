@@ -1,70 +1,31 @@
-<!DOCTYPE html>
-<html lang="cs">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Statistiky - Habit Tracker</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-</head>
-<body>
-    <div class="container">
-        <header>
-            <h1>📊 Statistiky návyků</h1>
-            <p class="subtitle">Přehled tvého pokroku</p>
-            <div class="user-info">
-                <span>Přihlášen jako: <strong>{{ current_user.username }}</strong></span>
-                <a href="{{ url_for('logout') }}" class="btn-logout">Odhlásit se</a>
-            </div>
-            <nav>
-                <a href="{{ url_for('index') }}">Dnes</a>
-                <a href="{{ url_for('statistics') }}" class="active">Statistiky</a>
-            </nav>
-        </header>
+{% extends 'base.html' %}
+{% from 'makra/macros.html' import stat_card, empty_state %}
 
-        <main>
-            {% if stats %}
-                {% for stat in stats %}
-                    <div class="stat-card">
-                        <div class="stat-header">
-                            <h2>{{ stat.habit.name }}</h2>
-                            <span class="target-badge">Cíl: {{ stat.habit.target_per_week }}x týdně</span>
-                        </div>
-                        
-                        <div class="stat-summary">
-                            <div class="stat-item">
-                                <div class="stat-value">{{ stat.total_count }}</div>
-                                <div class="stat-label">Celkem splněno</div>
-                            </div>
-                            <div class="stat-item">
-                                <div class="stat-value">{{ stat.current_streak }}</div>
-                                <div class="stat-label">Aktuální série</div>
-                            </div>
-                            <div class="stat-item">
-                                <div class="stat-value">{{ stat.max_streak }}</div>
-                                <div class="stat-label">Nejdelší série</div>
-                            </div>
-                        </div>
-                        
-                        <div class="calendar">
-                            <h3>Posledních 30 dní</h3>
-                            <div class="calendar-grid">
-                                {% for day in stat.last_30_days %}
-                                    <div class="calendar-day {% if day.completed %}completed{% endif %}" 
-                                         title="{{ day.date }}">
-                                        <div class="day-number">{{ day.date[-2:] }}</div>
-                                    </div>
-                                {% endfor %}
-                            </div>
-                        </div>
-                    </div>
-                {% endfor %}
-            {% else %}
-                <div class="empty-state">
-                    <p>📈 Zatím nemáš žádné statistiky.</p>
-                    <p><a href="{{ url_for('index') }}">Přidej své první návyky</a> a začni je sledovat!</p>
-                </div>
-            {% endif %}
-        </main>
-    </div>
-</body>
-</html>
+{% block title %}Statistiky - Habit Tracker{% endblock %}
+
+{% block header %}
+    <header>
+        <h1>📊 Statistiky návyků</h1>
+        <p class="subtitle">Přehled tvého pokroku</p>
+        <div class="user-info">
+            <span>Přihlášen jako: <strong>{{ current_user.username }}</strong></span>
+            <a href="{{ url_for('logout') }}" class="btn-logout">Odhlásit se</a>
+        </div>
+        <nav>
+            <a href="{{ url_for('index') }}">Dnes</a>
+            <a href="{{ url_for('statistics') }}" class="active">Statistiky</a>
+        </nav>
+    </header>
+{% endblock %}
+
+{% block content %}
+    {% if stats %}
+        {% for stat in stats %}
+            {{ stat_card(stat) }}
+        {% endfor %}
+    {% else %}
+        {{ empty_state('📈', 'Zatím nemáš žádné statistiky.', '', url_for('index'), 'Přidej své první návyky a začni je sledovat!') }}
+    {% endif %}
+
+{% endblock %}
+

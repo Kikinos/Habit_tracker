@@ -1,45 +1,32 @@
-<!DOCTYPE html>
-<html lang="cs">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Přihlášení - Habit Tracker</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-</head>
-<body>
-    <div class="container">
-        <div class="auth-container">
-            <div class="auth-card">
-                <h1>🎯 Habit Tracker</h1>
-                <h2>Přihlášení</h2>
-                
-                {% with messages = get_flashed_messages(with_categories=true) %}
-                    {% if messages %}
-                        {% for category, message in messages %}
-                            <div class="alert alert-{{ category }}">{{ message }}</div>
-                        {% endfor %}
-                    {% endif %}
-                {% endwith %}
-                
-                <form method="POST" action="{{ url_for('login') }}" class="auth-form">
-                    <div class="form-group">
-                        <label for="username">Uživatelské jméno</label>
-                        <input type="text" id="username" name="username" required autofocus>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="password">Heslo</label>
-                        <input type="password" id="password" name="password" required>
-                    </div>
-                    
-                    <button type="submit" class="btn btn-primary btn-block">Přihlásit se</button>
-                </form>
-                
-                <p class="auth-link">
-                    Nemáš účet? <a href="{{ url_for('register') }}">Zaregistruj se</a>
-                </p>
-            </div>
+{% extends 'base.html' %}
+{% from 'makra/macros.html' import form_field, submit_button %}
+
+{% block title %}Přihlášení - Habit Tracker{% endblock %}
+
+{% block content %}
+    <div class="auth-container">
+        <div class="auth-card">
+            <h1>🎯 Habit Tracker</h1>
+            <h2>Přihlášení</h2>
+            
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+            
+            <form method="POST" action="{{ url_for('login') }}" class="auth-form" novalidate>
+                {{ form_field('username', 'Uživatelské jméno', autofocus=True, maxlength='80') }}
+                {{ form_field('password', 'Heslo', type='password', maxlength='200') }}
+                {{ submit_button('Přihlásit se', 'btn-primary') }}
+            </form>
+            
+            <p class="auth-link">
+                Nemáš účet? <a href="{{ url_for('register') }}">Zaregistruj se</a>
+            </p>
         </div>
     </div>
-</body>
-</html>
+{% endblock %}
+

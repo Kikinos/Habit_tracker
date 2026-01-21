@@ -1,0 +1,140 @@
+{% macro form_field(name, label, type='text', required=True, value='', minlength='', maxlength='', placeholder='', autofocus=False, pattern='', extra_attrs='') %}
+    <div class="form-group">
+        <label for="{{ name }}">{{ label }}</label>
+        <input type="{{ type }}" 
+               id="{{ name }}" 
+               name="{{ name }}" 
+               value="{{ value }}"
+               placeholder="{{ placeholder }}"
+               {% if required %}required{% endif %}
+               {% if minlength %}minlength="{{ minlength }}"{% endif %}
+               {% if maxlength %}maxlength="{{ maxlength }}"{% endif %}
+               {% if pattern %}pattern="{{ pattern }}"{% endif %}
+               {% if autofocus %}autofocus{% endif %}
+               {{ extra_attrs }}>
+        <span class="form-help"></span>
+    </div>
+{% endmacro %}
+
+{% macro submit_button(label='Odeslat', css_class='btn-primary') %}
+    <button type="submit" class="btn {{ css_class }} btn-block">{{ label }}</button>
+{% endmacro %}
+
+{% macro auth_card(title, form_html, footer_html='') %}
+    <div class="auth-container">
+        <div class="auth-card">
+            <h1>🎯 Habit Tracker</h1>
+            <h2>{{ title }}</h2>
+            
+            {% block messages %}
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ category }}">{{ message }}</div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+            {% endblock %}
+            
+            {{ form_html }}
+            
+            {% if footer_html %}
+                {{ footer_html }}
+            {% endif %}
+        </div>
+    </div>
+{% endmacro %}
+
+{% macro header(title, subtitle='', show_user=True) %}
+    <header>
+        <h1>{{ title }}</h1>
+        {% if subtitle %}<p class="subtitle">{{ subtitle }}</p>{% endif %}
+        {% if show_user %}
+            <div class="user-info">
+                <span>Přihlášen jako: <strong>{{ current_user.username }}</strong></span>
+                <a href="{{ url_for('logout') }}" class="btn-logout">Odhlásit se</a>
+            </div>
+        {% endif %}
+        {% if show_user %}
+            <nav>
+                {% block nav %}{% endblock %}
+            </nav>
+        {% endif %}
+    </header>
+{% endmacro %}
+
+{% macro habit_card(habit) %}
+    <div class="habit-card {% if habit.completed_today %}completed{% endif %}">
+        <div class="habit-header">
+            <div class="habit-info">
+                <div class="habit-target">{{ habit.week_count }}/{{ habit.target_per_week }}</div>
+                <h3>{{ habit.name }}</h3>
+            </div>
+            <form method="POST" action="{{ url_for('delete_habit', habit_id=habit.id) }}" 
+                  onsubmit="return confirm('Opravdu smazat tento návyk?');">
+                <button type="submit" class="btn-delete" title="Smazat">🗑️</button>
+            </form>
+        </div>
+        
+        <div class="habit-stats">
+            <span class="week-count">Tento týden: {{ habit.week_count }}/{{ habit.target_per_week }}</span>
+            {% if habit.week_count >= habit.target_per_week %}
+                <span class="goal-badge">✅ Cíl splněn!</span>
+            {% endif %}
+        </div>
+        
+        <button class="btn-toggle" data-habit-id="{{ habit.id }}" onclick="toggleHabit(this.dataset.habitId, this)">
+            {% if habit.completed_today %}
+                ✅ Splněno
+            {% else %}
+                ⭕ Označit jako splněné
+            {% endif %}
+        </button>
+    </div>
+{% endmacro %}
+
+{% macro empty_state(icon, title, subtitle='', link_url='', link_text='') %}
+    <div class="empty-state">
+        <p>{{ icon }} {{ title }}</p>
+        {% if subtitle %}<p>{{ subtitle }}</p>{% endif %}
+        {% if link_url and link_text %}
+            <p><a href="{{ link_url }}">{{ link_text }}</a></p>
+        {% endif %}
+    </div>
+{% endmacro %}
+
+{% macro stat_card(stat) %}
+    <div class="stat-card">
+        <div class="stat-header">
+            <h2>{{ stat.habit.name }}</h2>
+            <span class="target-badge">Cíl: {{ stat.habit.target_per_week }}x týdně</span>
+        </div>
+        
+        <div class="stat-summary">
+            <div class="stat-item">
+                <div class="stat-value">{{ stat.total_count }}</div>
+                <div class="stat-label">Celkem splněno</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value">{{ stat.current_streak }}</div>
+                <div class="stat-label">Aktuální série</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value">{{ stat.max_streak }}</div>
+                <div class="stat-label">Nejdelší série</div>
+            </div>
+        </div>
+        
+        <div class="calendar">
+            <h3>Posledních 30 dní</h3>
+            <div class="calendar-grid">
+                {% for day in stat.last_30_days %}
+                    <div class="calendar-day {% if day.completed %}completed{% endif %}" 
+                         title="{{ day.date }}">
+                        <div class="day-number">{{ day.date[-2:] }}</div>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+{% endmacro %}

@@ -1,91 +1,53 @@
-<!DOCTYPE html>
-<html lang="cs">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Habit Tracker - Sledování návyků</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-</head>
-<body>
-    <div class="container">
-        <header>
-            <h1>🎯 Sledování návyků</h1>
-            <p class="subtitle">Buduj lepší verzi sebe</p>
-            <div class="user-info">
-                <span>Přihlášen jako: <strong>{{ current_user.username }}</strong></span>
-                <a href="{{ url_for('logout') }}" class="btn-logout">Odhlásit se</a>
-            </div>
-            <nav>
-                <a href="{{ url_for('index') }}" class="active">Dnes</a>
-                <a href="{{ url_for('statistics') }}">Statistiky</a>
-            </nav>
-        </header>
+{% extends 'base.html' %}
+{% from 'makra/macros.html' import habit_card, empty_state %}
 
-        <main>
-            {% with messages = get_flashed_messages(with_categories=true) %}
-                {% if messages %}
-                    {% for category, message in messages %}
-                        <div class="alert alert-{{ category }}">{{ message }}</div>
-                    {% endfor %}
-                {% endif %}
-            {% endwith %}
-            <!-- Formulář pro přidání nového návyku -->
-            <div class="add-habit-section">
-                <h2>Přidat nový návyk</h2>
-                <form method="POST" action="{{ url_for('add_habit') }}" class="add-habit-form">
-                    <input type="text" name="habit_name" placeholder="Název návyku (např. Běhání)" required>
-                    <input type="number" name="target_per_week" placeholder="Cíl za týden (1-7)" min="1" max="7" value="7" required>
-                    <button type="submit" class="btn btn-primary">Přidat</button>
-                </form>
-                <p class="form-hint">🎯 Nastav, kolikrát týdně chceš aktivitu splnění (1-7)</p>
-            </div>
+{% block title %}Habit Tracker - Sledování návyků{% endblock %}
 
-            <!-- Seznam návyků -->
-            <div class="habits-section">
-                <h2>Dnešní návyky <span class="date">({{ today }})</span></h2>
-                
-                {% if habits %}
-                    <div class="habits-grid">
-                        {% for habit in habits %}
-                            <div class="habit-card {% if habit.completed_today %}completed{% endif %}">
-                                <div class="habit-header">
-                                    <div class="habit-info">
-                                        <div class="habit-target">{{ habit.week_count }}/{{ habit.target_per_week }}</div>
-                                        <h3>{{ habit.name }}</h3>
-                                    </div>
-                                    <form method="POST" action="{{ url_for('delete_habit', habit_id=habit.id) }}" 
-                                          onsubmit="return confirm('Opravdu smazat tento návyk?');">
-                                        <button type="submit" class="btn-delete" title="Smazat">🗑️</button>
-                                    </form>
-                                </div>
-                                
-                                <div class="habit-stats">
-                                    <span class="week-count">Tento týden: {{ habit.week_count }}/{{ habit.target_per_week }}</span>
-                                    {% if habit.week_count >= habit.target_per_week %}
-                                        <span class="goal-badge">✅ Cíl splněn!</span>
-                                    {% endif %}
-                                </div>
-                                
-                                <button class="btn-toggle" data-habit-id="{{ habit.id }}" onclick="toggleHabit(this.dataset.habitId, this)">
-                                    {% if habit.completed_today %}
-                                        ✅ Splněno
-                                    {% else %}
-                                        ⭕ Označit jako splněné
-                                    {% endif %}
-                                </button>
-                            </div>
-                        {% endfor %}
-                    </div>
-                {% else %}
-                    <div class="empty-state">
-                        <p>🌟 Zatím nemáš žádné návyky.</p>
-                        <p>Začni přidáním svého prvního návyku výše!</p>
-                    </div>
-                {% endif %}
-            </div>
-        </main>
+{% block header %}
+    <header>
+        <h1>🎯 Sledování návyků</h1>
+        <p class="subtitle">Buduj lepší verzi sebe</p>
+        <div class="user-info">
+            <span>Přihlášen jako: <strong>{{ current_user.username }}</strong></span>
+            <a href="{{ url_for('logout') }}" class="btn-logout">Odhlásit se</a>
+        </div>
+        <nav>
+            <a href="{{ url_for('index') }}" class="active">Dnes</a>
+            <a href="{{ url_for('statistics') }}">Statistiky</a>
+        </nav>
+    </header>
+{% endblock %}
+
+{% block content %}
+    <!-- Formulář pro přidání nového návyku -->
+    <div class="add-habit-section">
+        <h2>Přidat nový návyk</h2>
+        <form method="POST" action="{{ url_for('add_habit') }}" class="add-habit-form" novalidate>
+            <input type="text" name="habit_name" placeholder="Název návyku (např. Běhání)" maxlength="100" pattern="^[a-zA-Z0-9\s\-ěščřžýáíé]{1,100}$" required title="Název může mít 1-100 znaků">
+            <input type="number" name="target_per_week" placeholder="Cíl za týden (1-7)" min="1" max="7" value="7" required>
+            <button type="submit" class="btn btn-primary">Přidat</button>
+        </form>
+        <p class="form-hint">🎯 Nastav, kolikrát týdně chceš aktivitu splnění (1-7)</p>
     </div>
 
+    <!-- Seznam návyků -->
+    <div class="habits-section">
+        <h2>Dnešní návyky <span class="date">({{ today }})</span></h2>
+        
+        {% if habits %}
+            <div class="habits-grid">
+                {% for habit in habits %}
+                    {{ habit_card(habit) }}
+                {% endfor %}
+            </div>
+        {% else %}
+            {{ empty_state('🌟', 'Zatím nemáš žádné návyky.', 'Začni přidáním svého prvního návyku výše!') }}
+        {% endif %}
+    </div>
+
+{% endblock %}
+
+{% block extra_js %}
     <script>
         function toggleHabit(habitId, button) {
             fetch(`/toggle_habit/${habitId}`, {
@@ -109,5 +71,5 @@
             });
         }
     </script>
-</body>
-</html>
+{% endblock %}
+
