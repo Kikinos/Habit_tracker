@@ -67,22 +67,18 @@ if DB_TYPE == 'sqlite':
     # SQLite pro vývoj
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///habits.db'
 else:
-    # SQL Server pro produkci
-    DB_USER = os.getenv('DB_USER', 'sa')
-    DB_PASSWORD = os.getenv('DB_PASSWORD', 'DefaultPassword123')
-    DB_HOST = os.getenv('DB_HOST', 'localhost')
-    DB_PORT = os.getenv('DB_PORT', '1433')
-    DB_NAME = os.getenv('DB_NAME', 'habit_tracker')
-    
-    # Connection string pro SQL Server
-    connection_string = f'mssql+pyodbc://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}?driver=ODBC+Driver+17+for+SQL+Server'
-    app.config['SQLALCHEMY_DATABASE_URI'] = connection_string
+    # SQLite pro vývoj - všechny režimy
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///habits.db'
 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key-change-this-in-production')
 
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
+
+# Automatické vytvoření tabulek
+with app.app_context():
+    db.create_all()
 
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'

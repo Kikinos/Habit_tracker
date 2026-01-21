@@ -6,6 +6,11 @@ services:
       - "5000:5000"
     volumes:
       - .:/app
+      - instance:/app/instance
     environment:
       - FLASK_ENV=development
+      - SECRET_KEY=your-secret-key-change-this-in-production
     restart: unless-stopped
+
+volumes:
+  instance:
